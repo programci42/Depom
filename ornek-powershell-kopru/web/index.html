@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Modern UI ↔ VBScript Köprüsü</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Modern UI <span>↔</span> VBScript Köprüsü</h1>
+    <p class="sub">Chromium motoru · arka uçta <code>cscript backend.vbs</code> · Node yok · WebView2 yok</p>
+  </header>
+
+  <main class="grid">
+    <section class="card">
+      <h2>Sistem Bilgisi <small>— VBScript (WScript.Network / WMI)</small></h2>
+      <div id="info" class="muted">Yükleniyor…</div>
+    </section>
+
+    <section class="card">
+      <h2>Kullanıcılar <small>— VBScript (FileSystemObject)</small></h2>
+      <form id="addForm" class="row" autocomplete="off">
+        <input id="name" type="text" placeholder="Ad Soyad (ör. Ayşe Yılmaz)" required>
+        <select id="role">
+          <option>Kullanıcı</option>
+          <option>Yönetici</option>
+          <option>Misafir</option>
+        </select>
+        <button type="submit">Ekle</button>
+      </form>
+      <table>
+        <thead><tr><th>#</th><th>Ad</th><th>Rol</th><th></th></tr></thead>
+        <tbody id="users"><tr><td colspan="4" class="muted">Yükleniyor…</td></tr></tbody>
+      </table>
+    </section>
+
+    <section class="card span-2">
+      <h2>Bu gerçekten modern bir motor mu? <small>— kanıt</small></h2>
+      <dl class="kv">
+        <dt>userAgent</dt><dd><code id="engine">–</code></dd>
+        <dt>CSS Grid desteği</dt><dd id="grid">–</dd>
+        <dt><code>:has()</code> seçici desteği</dt><dd id="has">–</dd>
+        <dt>JS opsiyonel zincir <code>?.</code></dt><dd id="opt">–</dd>
+      </dl>
+      <p class="muted">
+        Bu satırlar klasik HTA (IE11/MSHTML) ortamında <b>false</b> olur veya
+        sayfayı kırardı. Modern motorda çalıştığınızın kanıtı.
+      </p>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
