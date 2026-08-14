@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTA Form Tasarımcısı — Modern (HTML5 + VBScript Köprüsü)</title>
+<style>
+:root{
+  --bg:#0f172a; --panel:#1e293b; --panel2:#243043; --line:#334155;
+  --text:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; --accent2:#818cf8;
+  --ok:#4ade80; --danger:#f87171; --radius:10px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; font:14px/1.5 system-ui,"Segoe UI",Roboto,sans-serif; color:var(--text);
+  background:var(--bg); display:flex; flex-direction:column; overflow:hidden;
+}
+button,input,select,textarea{font:inherit;color:var(--text)}
+code{background:#0b1220;color:var(--accent);padding:1px 5px;border-radius:5px;font-size:.92em}
+
+/* ---- Üst çubuk ---- */
+.topbar{
+  display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(180deg,#172033,#131c2e);
+  border-bottom:1px solid var(--line);flex-wrap:wrap;
+}
+.topbar h1{font-size:15px;margin:0 12px 0 0;white-space:nowrap}
+.topbar h1 b{color:var(--accent)}
+.topbar input#pName{background:#0b1220;border:1px solid var(--line);border-radius:8px;padding:7px 10px;width:200px}
+.tb-btn{
+  cursor:pointer;border:1px solid var(--line);background:#0b1220;color:var(--text);
+  padding:7px 12px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;
+}
+.tb-btn:hover{border-color:var(--accent);color:#fff}
+.tb-btn.primary{background:linear-gradient(180deg,var(--accent),var(--accent2));color:#06121f;border:0;font-weight:700}
+.spacer{flex:1}
+
+/* ---- Ana yerleşim ---- */
+.main{flex:1;display:grid;grid-template-columns:230px 1fr 320px;min-height:0}
+.col{overflow:auto;padding:12px}
+.col.left{border-right:1px solid var(--line);background:var(--panel)}
+.col.right{border-left:1px solid var(--line);background:var(--panel)}
+.section-title{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:4px 0 10px}
+
+/* ---- Araç kutusu ---- */
+.tool{
+  width:100%;text-align:left;cursor:pointer;border:1px solid var(--line);background:var(--panel2);
+  color:var(--text);padding:9px 10px;border-radius:8px;margin-bottom:8px;display:flex;align-items:center;gap:9px;
+}
+.tool:hover{border-color:var(--accent);transform:translateX(2px)}
+.tool .ico{font-size:16px;width:22px;text-align:center}
+
+/* ---- Tasarım alanı ---- */
+.canvas-wrap{padding:0;background:
+  linear-gradient(90deg,#0e1626 1px,transparent 1px) 0 0/24px 24px,
+  linear-gradient(#0e1626 1px,transparent 1px) 0 0/24px 24px, #0b1220;}
+#canvas{
+  position:relative;width:100%;height:100%;min-height:600px;overflow:auto;
+}
+#canvas .draggable{position:absolute;cursor:move;user-select:none}
+#canvas .draggable.selected{outline:2px solid var(--accent);outline-offset:2px}
+/* tasarımdaki kontroller okunur dursun */
+#canvas input,#canvas select,#canvas textarea,#canvas button,#canvas a,#canvas label,#canvas table{font-family:system-ui}
+#canvas .ctl-btn{padding:8px 16px;border:0;border-radius:6px;background:#4CAF50;color:#fff;font-weight:600;cursor:move}
+#canvas table{border-collapse:collapse;background:#fff;color:#111}
+#canvas th,#canvas td{border:1px solid #cbd5e1;padding:6px 10px;min-width:48px}
+#canvas th{background:#4CAF50;color:#fff}
+.canvas-hint{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:var(--muted);text-align:center;pointer-events:none}
+
+/* ---- Sağ panel / sekmeler ---- */
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tab{flex:1;text-align:center;cursor:pointer;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--muted)}
+.tab.active{background:linear-gradient(180deg,var(--accent),var(--accent2));color:#06121f;font-weight:700;border:0}
+.pane{display:none}
+.pane.active{display:block}
+.field{margin-bottom:10px}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.field input,.field select,.field textarea{
+  width:100%;background:#0b1220;border:1px solid var(--line);border-radius:8px;padding:8px;
+}
+.field textarea{min-height:120px;font-family:ui-monospace,Consolas,monospace;font-size:13px;resize:vertical}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mini{font-size:12px;color:var(--muted);margin-top:6px}
+.inline-btns{display:flex;gap:6px;margin-top:6px}
+.inline-btns .tb-btn{padding:6px 10px;font-size:13px}
+hr.sep{border:0;border-top:1px solid var(--line);margin:14px 0}
+
+/* ---- Toast ---- */
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(60px);
+  background:#0b1220;border:1px solid var(--accent);color:#fff;padding:12px 18px;border-radius:10px;
+  opacity:0;transition:.3s;z-index:50;max-width:80vw}
+#toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+#toast.err{border-color:var(--danger)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>HTA Tasarımcısı <b>Modern</b></h1>
+  <input id="pName" value="uygulamam" title="Proje adı (zip ve başlık)">
+  <button class="tb-btn" id="btnNew">🗑️ Yeni</button>
+  <button class="tb-btn" id="btnSave">💾 Tasarımı Kaydet</button>
+  <button class="tb-btn" id="btnLoad">📂 Tasarım Yükle</button>
+  <button class="tb-btn" id="btnPreview">👁️ Önizleme</button>
+  <span class="spacer"></span>
+  <button class="tb-btn primary" id="btnExport">⬇️ Dışa Aktar (.zip)</button>
+</div>
+
+<div class="main">
+  <!-- SOL: Araç kutusu -->
+  <div class="col left">
+    <div class="section-title">Araçlar</div>
+    <div id="toolbox"></div>
+    <hr class="sep">
+    <div class="mini">Aracı tıkla → tasarım alanına eklenir. Sürükleyerek taşı, seçmek için tıkla.</div>
+  </div>
+
+  <!-- ORTA: Tasarım alanı -->
+  <div class="col canvas-wrap" style="overflow:hidden">
+    <div id="canvas">
+      <div class="canvas-hint">Soldan bir araç ekleyerek başla</div>
+    </div>
+  </div>
+
+  <!-- SAĞ: Müfettiş -->
+  <div class="col right">
+    <div class="tabs">
+      <div class="tab active" data-pane="props">Özellikler</div>
+      <div class="tab" data-pane="event">Olay Kodu</div>
+      <div class="tab" data-pane="global">Genel VBScript</div>
+    </div>
+
+    <!-- Özellikler -->
+    <div class="pane active" id="pane-props">
+      <div class="field"><label>id</label><input id="pid"></div>
+      <div class="field"><label>Metin / Değer</label><input id="ptext"></div>
+      <div class="row2">
+        <div class="field"><label>X (px)</label><input id="px"></div>
+        <div class="field"><label>Y (px)</label><input id="py"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Genişlik</label><input id="pw"></div>
+        <div class="field"><label>Yükseklik</label><input id="ph"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Yazı Rengi</label><input id="pcolor" placeholder="örn. #fff / red"></div>
+        <div class="field"><label>Arka Plan</label><input id="pbg" placeholder="örn. #1e293b"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Yazı Boyutu</label><input id="pfont" placeholder="örn. 16px"></div>
+        <div class="field"><label>CSS Sınıfı</label><input id="pclass"></div>
+      </div>
+
+      <div id="tableProps" style="display:none">
+        <hr class="sep">
+        <div class="row2">
+          <div class="field"><label>Satır</label><input id="prows" type="number" min="1"></div>
+          <div class="field"><label>Sütun</label><input id="pcols" type="number" min="1"></div>
+        </div>
+      </div>
+
+      <div id="selectProps" style="display:none">
+        <hr class="sep">
+        <div class="field"><label>Seçenek (option)</label><input id="popt"></div>
+        <div class="inline-btns">
+          <button class="tb-btn" id="optAdd">Ekle</button>
+          <button class="tb-btn" id="optDel">Sil</button>
+        </div>
+      </div>
+
+      <div id="imgProps" style="display:none">
+        <hr class="sep">
+        <div class="field"><label>Görsel kaynağı (src / data URI)</label><input id="pimg"></div>
+        <div class="inline-btns"><button class="tb-btn" id="imgLoad">Dosyadan Yükle</button></div>
+      </div>
+
+      <hr class="sep">
+      <button class="tb-btn" id="btnDelete" style="border-color:var(--danger);color:var(--danger)">🗑️ Kontrolü Sil</button>
+    </div>
+
+    <!-- Olay kodu -->
+    <div class="pane" id="pane-event">
+      <div class="field">
+        <label>Seçili kontrol tıklanınca çalışacak VBScript (sunucuda <code>cscript</code> ile)</label>
+        <textarea id="evcode" placeholder='Örn:&#10;TabloDoldur "tablo1", "SELECT * FROM Musteriler"&#10;Mesaj "Liste yuklendi"'></textarea>
+      </div>
+      <div class="mini">
+        Kullanabileceğin yardımcılar:
+        <code>Frm("id")</code> form değeri,
+        <code>Mesaj "..."</code>,
+        <code>DegerAta "id","..."</code>,
+        <code>Temizle "id"</code>,
+        <code>Calistir "SQL"</code>,
+        <code>TabloDoldur "tabloId","SELECT..."</code>.
+        Ayrıca tam ADODB erişimin var (<code>conn</code>, <code>recs</code>).
+      </div>
+    </div>
+
+    <!-- Genel VBScript -->
+    <div class="pane" id="pane-global">
+      <div class="field">
+        <label>Tüm aksiyonların paylaştığı genel VBScript (Dim / Sub / Function / bağlantı)</label>
+        <textarea id="globalCode" placeholder='Örn. Access yerine başka bağlantı:&#10;constr = "Provider=...;Data Source=..."'></textarea>
+      </div>
+      <div class="mini">
+        Varsayılan bağlantı bir Access dosyasıdır (<code>veriler.mdb</code>, uygulama klasöründe).
+        Değiştirmek için burada <code>constr = "..."</code> ata.
+      </div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileDesign" accept=".json" style="display:none">
+<input type="file" id="fileImage" accept="image/*" style="display:none">
+<div id="toast"></div>
+
+<!-- ===================== ÜRETİLEN PAKET ŞABLONLARI ===================== -->
+<!-- (text/plain: tarayıcı bunları çalıştırmaz; dışa aktarımda metin olarak okunur) -->
+
+<script type="text/plain" id="tpl-style">
+:root{ --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --muted:#94a3b8; --line:#334155; --accent:#38bdf8; }
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 system-ui,"Segoe UI",Roboto,sans-serif;color:var(--text);
+  background:radial-gradient(1000px 500px at 80% -10%,#20304d,transparent),var(--bg);min-height:100vh}
+#app{position:relative;min-height:100vh;padding:20px}
+#app .ctl-btn{padding:8px 16px;border:0;border-radius:8px;background:linear-gradient(180deg,#38bdf8,#818cf8);
+  color:#06121f;font-weight:700;cursor:pointer}
+#app .ctl-btn:hover{filter:brightness(1.08)}
+#app input,#app select,#app textarea{background:#0b1220;border:1px solid var(--line);color:var(--text);
+  border-radius:8px;padding:8px}
+#app a{color:var(--accent)}
+#app table{border-collapse:collapse;background:#0b1220;color:var(--text);border:1px solid var(--line)}
+#app th,#app td{border:1px solid var(--line);padding:8px 12px;text-align:left}
+#app th{background:#1e293b;color:var(--accent)}
+#__toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(60px);background:#0b1220;
+  border:1px solid var(--accent);color:#fff;padding:12px 18px;border-radius:10px;opacity:0;transition:.3s;z-index:50}
+#__toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+#__toast.err{border-color:#f87171}
+</script>
+
+<script type="text/plain" id="tpl-app">
+// Üretilen uygulama çalışma zamanı — modern tarayıcı <-> VBScript köprüsü istemcisi.
+// file:// ile açılırsa köprüye mutlak adresle, http (köprü) ile açılırsa aynı origin'e gider.
+const API_BASE = (location.protocol === 'file:') ? 'http://localhost:8765' : '';
+
+function collectForm(){
+  const data = {};
+  document.querySelectorAll('#app input, #app select, #app textarea').forEach(el=>{
+    if(!el.id) return;
+    if(el.type === 'checkbox' || el.type === 'radio') data[el.id] = el.checked ? (el.value || 'on') : '';
+    else data[el.id] = el.value;
+  });
+  return data;
+}
+
+async function callVBS(action){
+  try{
+    const res = await fetch(API_BASE + '/api?action=' + encodeURIComponent(action), {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:new URLSearchParams(collectForm()).toString()
+    });
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    (data.commands || []).forEach(runCommand);
+    if(data.error) toast(data.error, true);
+  }catch(e){
+    toast('Köprü hatası: ' + e.message + '  (baslat.vbs çalışıyor mu?)', true);
+  }
+}
+
+function runCommand(c){
+  if(c.type === 'msg') toast(c.text);
+  else if(c.type === 'set'){ const el = document.getElementById(c.id); if(el){ if('value' in el) el.value = c.value; else el.textContent = c.value; } }
+  else if(c.type === 'clear'){ const el = document.getElementById(c.id); if(el && 'value' in el) el.value = ''; }
+  else if(c.type === 'fillTable') fillTable(c.id, c.headers || [], c.rows || []);
+}
+
+function fillTable(id, headers, rows){
+  const tbl = document.getElementById(id);
+  if(!tbl) return;
+  let html = '';
+  if(headers.length) html += '<thead><tr>' + headers.map(h=>'<th>'+esc(h)+'</th>').join('') + '</tr></thead>';
+  html += '<tbody>' + rows.map(r=>'<tr>'+r.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('') + '</tbody>';
+  tbl.innerHTML = html;
+}
+
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let toastTimer;
+function toast(msg, isErr){
+  let t = document.getElementById('__toast');
+  if(!t){ t = document.createElement('div'); t.id = '__toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.className = isErr ? 'err show' : 'show';
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=> t.className = '', 3800);
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.querySelectorAll('[data-vbs-click]').forEach(el=>{
+    el.addEventListener('click', e=>{ e.preventDefault(); callVBS(el.getAttribute('data-vbs-click')); });
+  });
+});
+</script>
+
+<script type="text/plain" id="tpl-server">
+# ============================================================
+#  server.ps1  -  Modern tarayici <-> VBScript koprusu
+#  - PowerShell HttpListener (Windows'ta hazir gelir) ile yerel HTTP sunucusu
+#  - web/ klasorunu servis eder; /api -> cscript backend.vbs
+#  - Node YOK, WebView2 YOK.  Durdurmak icin Ctrl+C.
+# ============================================================
+$ErrorActionPreference = 'Stop'
+$root    = Split-Path -Parent $MyInvocation.MyCommand.Path
+$webRoot = Join-Path $root 'web'
+$vbs     = Join-Path $root 'backend.vbs'
+$port    = 8765
+$prefix  = "http://localhost:$port/"
+$cscript = 'cscript'   # 32-bit Jet/ACE gerekirse: "$env:WINDIR\SysWOW64\cscript.exe"
+
+$mime = @{
+  '.html'='text/html; charset=utf-8'; '.css'='text/css; charset=utf-8';
+  '.js'='application/javascript; charset=utf-8'; '.json'='application/json; charset=utf-8';
+  '.png'='image/png'; '.svg'='image/svg+xml'; '.ico'='image/x-icon'
+}
+
+function Cors($resp){
+  $resp.Headers['Access-Control-Allow-Origin']  = '*'
+  $resp.Headers['Access-Control-Allow-Headers'] = 'Content-Type'
+  $resp.Headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+}
+function Send-Bytes($ctx,[byte[]]$b,[string]$t,[int]$s=200){
+  Cors $ctx.Response
+  $ctx.Response.StatusCode=$s; $ctx.Response.ContentType=$t; $ctx.Response.ContentLength64=$b.Length
+  $ctx.Response.OutputStream.Write($b,0,$b.Length); $ctx.Response.OutputStream.Close()
+}
+function Send-Text($ctx,[string]$x,[string]$t,[int]$s=200){ Send-Bytes $ctx ([Text.Encoding]::UTF8.GetBytes($x)) $t $s }
+
+function Parse-Form([string]$s){
+  $h=@{}
+  if($s){ foreach($pair in ($s -split '&')){
+    if(-not $pair){ continue }
+    $kv = $pair -split '=',2
+    $k = [Uri]::UnescapeDataString(($kv[0] -replace '\+',' '))
+    $v = if($kv.Count -gt 1){ [Uri]::UnescapeDataString(($kv[1] -replace '\+',' ')) } else { '' }
+    $h[$k]=$v
+  } }
+  return $h
+}
+function Write-InputFile([hashtable]$form){
+  $tmp=[IO.Path]::GetTempFileName()
+  $sb=[Text.StringBuilder]::new()
+  foreach($k in $form.Keys){
+    $v=[string]$form[$k]
+    $v=$v -replace '\\','\\' -replace "`r",'\r' -replace "`n",'\n'
+    [void]$sb.AppendLine("$k=$v")
+  }
+  [IO.File]::WriteAllText($tmp,$sb.ToString(),[Text.Encoding]::Unicode)
+  return $tmp
+}
+
+$listener=[System.Net.HttpListener]::new()
+$listener.Prefixes.Add($prefix)
+$listener.Start()
+Write-Host "`n  Kopru calisiyor:  $prefix" -ForegroundColor Green
+Write-Host "  Durdurmak icin :  Ctrl+C`n" -ForegroundColor DarkGray
+
+try{
+  while($listener.IsListening){
+    $ctx=$listener.GetContext(); $req=$ctx.Request; $path=$req.Url.AbsolutePath
+    try{
+      if($req.HttpMethod -eq 'OPTIONS'){ Cors $ctx.Response; $ctx.Response.StatusCode=204; $ctx.Response.OutputStream.Close(); continue }
+
+      if($path -eq '/api'){
+        $action=$req.QueryString['action']
+        if(-not $action){ Send-Text $ctx '{"error":"action eksik"}' $mime['.json'] 400; continue }
+
+        $form=@{}
+        foreach($k in $req.QueryString.AllKeys){ if($k -and $k -ne 'action'){ $form[$k]=$req.QueryString[$k] } }
+        if($req.HttpMethod -eq 'POST' -and $req.HasEntityBody){
+          $body=(New-Object IO.StreamReader($req.InputStream,$req.ContentEncoding)).ReadToEnd()
+          $bp=Parse-Form $body
+          foreach($k in $bp.Keys){ $form[$k]=$bp[$k] }
+        }
+
+        $inFile=Write-InputFile $form
+        $outFile=[IO.Path]::GetTempFileName()
+        (& $cscript '//nologo' $vbs $inFile $outFile $action 2>&1 | Out-String).Trim() |
+          ForEach-Object { if($_){ Write-Host "  [vbs] $_" -ForegroundColor DarkGray } }
+        $out= if(Test-Path $outFile){ [IO.File]::ReadAllText($outFile,[Text.Encoding]::UTF8) } else { '' }
+        Remove-Item $inFile,$outFile -ErrorAction SilentlyContinue
+        if(-not $out.Trim()){ $out='{"error":"VBScript bos sonuc dondurdu"}' }
+        Write-Host ("  {0,-4} /api?action={1}" -f $req.HttpMethod,$action) -ForegroundColor Cyan
+        Send-Text $ctx $out $mime['.json']
+        continue
+      }
+
+      if($path -eq '/'){ $path='/index.html' }
+      $full=[IO.Path]::GetFullPath((Join-Path $webRoot ($path.TrimStart('/'))))
+      if(-not $full.StartsWith([IO.Path]::GetFullPath($webRoot))){ Send-Text $ctx 'Forbidden' 'text/plain; charset=utf-8' 403; continue }
+      if(Test-Path $full -PathType Leaf){
+        $ext=[IO.Path]::GetExtension($full).ToLower()
+        $type= if($mime.ContainsKey($ext)){ $mime[$ext] } else { 'application/octet-stream' }
+        Send-Bytes $ctx ([IO.File]::ReadAllBytes($full)) $type
+      } else { Send-Text $ctx 'Bulunamadi' 'text/plain; charset=utf-8' 404 }
+    } catch {
+      Write-Host "  HATA: $($_.Exception.Message)" -ForegroundColor Red
+      try { Send-Text $ctx ('{"error":"'+($_.Exception.Message -replace '"','\"')+'"}') $mime['.json'] 500 } catch {}
+    }
+  }
+} finally { $listener.Stop(); $listener.Close() }
+</script>
+
+<script type="text/plain" id="tpl-baslat">
+' ============================================================
+'  baslat.vbs  -  Tek tikla baslatici
+'  1) PowerShell koprusunu baslatir  2) modern tarayiciyi app modunda acar
+' ============================================================
+Option Explicit
+Dim shell, fso, here, ps1, url, port
+Set shell = CreateObject("WScript.Shell")
+Set fso   = CreateObject("Scripting.FileSystemObject")
+here = fso.GetParentFolderName(WScript.ScriptFullName)
+ps1  = fso.BuildPath(here, "server.ps1")
+port = 8765
+url  = "http://localhost:" & port & "/"
+
+shell.CurrentDirectory = here
+shell.Run "powershell -NoProfile -ExecutionPolicy Bypass -File """ & ps1 & """", 1, False
+WScript.Sleep 1300
+
+If Not OpenApp("msedge.exe", url) Then
+    If Not OpenApp("chrome.exe", url) Then
+        shell.Run url, 1, False
+    End If
+End If
+
+Function OpenApp(exeName, address)
+    On Error Resume Next
+    Dim exePath
+    exePath = shell.RegRead("HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\" & exeName & "\")
+    If Err.Number <> 0 Or Len(exePath) = 0 Then OpenApp = False : Exit Function
+    shell.Run """" & exePath & """ --app=" & address & " --new-window", 1, False
+    OpenApp = (Err.Number = 0)
+End Function
+</script>
+
+<script type="text/plain" id="tpl-backend">
+' ============================================================
+'  backend.vbs  -  VBScript is mantigi (cscript ile calisir)
+'  Cagri:  cscript //nologo backend.vbs <girdiDosyasi> <ciktiDosyasi> <action>
+'  Sonuc:  outFile'a UTF-8 (BOM'suz) JSON: { "commands":[ ... ] }
+' ============================================================
+Option Explicit
+
+Dim args : Set args = WScript.Arguments
+If args.Count < 3 Then WScript.Quit 1
+Dim inFile, outFile, action
+inFile  = args(0)
+outFile = args(1)
+action  = args(2)
+
+Dim fso, conn, recs, constr, gCommands
+Set fso = CreateObject("Scripting.FileSystemObject")
+gCommands = ""
+
+' Varsayilan Access baglantisi (uygulama klasorundeki veriler.mdb)
+Dim dataDir, dbPath
+dataDir = fso.GetParentFolderName(WScript.ScriptFullName)
+dbPath  = fso.BuildPath(dataDir, "veriler.mdb")
+constr  = "Provider=Microsoft.Jet.OLEDB.4.0;Data Source=" & dbPath
+
+' Form verisi
+Dim Form : Set Form = CreateObject("Scripting.Dictionary")
+LoadForm inFile
+
+' ===================== KULLANICI GENEL KODU =====================
+@@GLOBAL@@
+' ===============================================================
+
+' ===================== OLAY YONLENDIRME ========================
+On Error Resume Next
+Select Case action
+@@DISPATCH@@
+    Case Else
+        Mesaj "Taninmayan islem: " & action
+End Select
+If Err.Number <> 0 Then Mesaj "VBScript hata: " & Err.Description
+On Error GoTo 0
+
+WriteResult "{""commands"":[" & gCommands & "]}"
+WScript.Quit 0
+
+' ===================== YARDIMCILAR =============================
+Function Frm(ad)
+    If Form.Exists(ad) Then Frm = Form(ad) Else Frm = ""
+End Function
+
+Sub LoadForm(path)
+    If Not fso.FileExists(path) Then Exit Sub
+    Dim ts, line, p, k
+    Set ts = fso.OpenTextFile(path, 1, False, -1)   ' Unicode
+    Do Until ts.AtEndOfStream
+        line = ts.ReadLine
+        p = InStr(line, "=")
+        If p > 0 Then
+            k = Left(line, p - 1)
+            Form(k) = Unescape(Mid(line, p + 1))
+        End If
+    Loop
+    ts.Close
+End Sub
+
+Function Unescape(s)
+    Dim i, ch, nx, res
+    res = "" : i = 1
+    Do While i <= Len(s)
+        ch = Mid(s, i, 1)
+        If ch = "\" And i < Len(s) Then
+            nx = Mid(s, i + 1, 1)
+            If nx = "n" Then
+                res = res & vbLf : i = i + 2
+            ElseIf nx = "r" Then
+                res = res & vbCr : i = i + 2
+            ElseIf nx = "\" Then
+                res = res & "\" : i = i + 2
+            Else
+                res = res & ch : i = i + 1
+            End If
+        Else
+            res = res & ch : i = i + 1
+        End If
+    Loop
+    Unescape = res
+End Function
+
+Function J(s)
+    Dim t : t = CStr(s)
+    t = Replace(t, "\", "\\") : t = Replace(t, """", "\""")
+    t = Replace(t, vbCr, "\r") : t = Replace(t, vbLf, "\n") : t = Replace(t, vbTab, "\t")
+    J = t
+End Function
+
+Sub AddCmd(c)
+    If gCommands <> "" Then gCommands = gCommands & ","
+    gCommands = gCommands & c
+End Sub
+
+' ---- UI komutlari (kullanici kodunda cagrilir) ----
+Sub Mesaj(text) : AddCmd "{""type"":""msg"",""text"":""" & J(text) & """}" : End Sub
+Sub DegerAta(id, value) : AddCmd "{""type"":""set"",""id"":""" & J(id) & """,""value"":""" & J(value) & """}" : End Sub
+Sub Temizle(id) : AddCmd "{""type"":""clear"",""id"":""" & J(id) & """}" : End Sub
+
+' ---- Veritabani yardimcilari (ADODB / Access) ----
+Sub Baglan()
+    If Not IsObject(conn) Then Set conn = CreateObject("ADODB.Connection")
+    If conn.State <> 1 Then conn.Open constr
+End Sub
+
+Sub Calistir(sql)
+    Baglan
+    conn.Execute sql
+    Mesaj "Islem basarili"
+End Sub
+
+Sub TabloDoldur(tblId, sql)
+    Baglan
+    Set recs = CreateObject("ADODB.Recordset")
+    recs.Open sql, conn
+    Dim headers, rows, i
+    headers = "" : rows = ""
+    For i = 0 To recs.Fields.Count - 1
+        If i > 0 Then headers = headers & ","
+        headers = headers & """" & J(recs.Fields(i).Name) & """"
+    Next
+    Do Until recs.EOF
+        rows = rows & "["
+        For i = 0 To recs.Fields.Count - 1
+            If i > 0 Then rows = rows & ","
+            rows = rows & """" & J(recs.Fields(i).Value & "") & """"
+        Next
+        rows = rows & "]"
+        recs.MoveNext
+        If Not recs.EOF Then rows = rows & ","
+    Loop
+    recs.Close
+    AddCmd "{""type"":""fillTable"",""id"":""" & J(tblId) & """,""headers"":[" & headers & "],""rows"":[" & rows & "]}"
+End Sub
+
+Sub WriteResult(text)
+    Dim s1, b, s2
+    Set s1 = CreateObject("ADODB.Stream") : s1.Type = 2 : s1.Charset = "utf-8" : s1.Open
+    s1.WriteText text : s1.Position = 0 : s1.Type = 1 : s1.Position = 3 : b = s1.Read : s1.Close
+    Set s2 = CreateObject("ADODB.Stream") : s2.Type = 1 : s2.Open
+    s2.Write b : s2.SaveToFile outFile, 2 : s2.Close
+End Sub
+</script>
+
+<script type="text/plain" id="tpl-readme">
+# @@TITLE@@
+
+Bu paket, **HTA Tasarımcısı (Modern)** ile üretildi. Modern tarayıcıda çalışan bir
+arayüz + Windows'ta hazır gelen PowerShell köprüsü + sizin VBScript kodunuz içerir.
+**Node yok, WebView2 yok.**
+
+## Çalıştırma
+1. Bu klasörü Windows'a çıkarın.
+2. **baslat.vbs**'e çift tıklayın. PowerShell köprüsü açılır ve tarayıcı uygulama
+   modunda gelir. (Kapatmak için PowerShell penceresinde Ctrl+C.)
+
+> Not: index.html'i doğrudan çift tıklayarak da açabilirsiniz; ancak VBScript'in
+> çalışması için köprünün (baslat.vbs / server.ps1) açık olması gerekir.
+
+## Dosyalar
+- web/index.html, web/app.js, web/style.css : modern arayüz + köprü istemcisi
+- backend.vbs : VBScript iş mantığınız (olay kodları + genel kod + DB yardımcıları)
+- server.ps1  : PowerShell köprüsü (HTTP -> cscript backend.vbs)
+- baslat.vbs  : başlatıcı
+
+## Veritabanı
+Varsayılan bağlantı, klasördeki Access dosyası `veriler.mdb`'dir. Jet 4.0 (.mdb)
+yalnızca 32-bit olduğundan 64-bit Windows'ta server.ps1 içindeki `$cscript`
+değerini `"$env:WINDIR\SysWOW64\cscript.exe"` yapın (veya .accdb + 64-bit ACE kurun).
+
+## Olay kodu yardımcıları (backend.vbs)
+- `Frm("id")` : formdaki bir alanın değeri
+- `Mesaj "..."` : kullanıcıya bildirim
+- `DegerAta "id","deger"` / `Temizle "id"` : alan güncelle/temizle
+- `Calistir "SQL"` : INSERT/UPDATE/DELETE çalıştır
+- `TabloDoldur "tabloId","SELECT ..."` : sorgu sonucunu tabloya doldur
+- Tam ADODB erişimi: `conn`, `recs`, `constr`
+</script>
+
+<!-- ===================== TASARIMCI MANTIĞI ===================== -->
+<script>
+"use strict";
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const canvas = $('#canvas');
+let selected = null;
+let counter = 1;
+
+/* ---------- Araç kutusu ---------- */
+const TOOLS = [
+  ['label','🏷️','Etiket'], ['button','🔘','Buton'], ['text','🔤','Metin Kutusu'],
+  ['password','🔑','Şifre'], ['textarea','📝','Çok Satırlı'], ['select','🔽','Açılır Liste'],
+  ['checkbox','☑️','Onay Kutusu'], ['radio','🔘','Radyo'], ['link','🔗','Bağlantı'],
+  ['table','▦','Tablo'], ['image','🖼️','Görsel']
+];
+const toolbox = $('#toolbox');
+TOOLS.forEach(([kind,ico,label])=>{
+  const b = document.createElement('button');
+  b.className = 'tool';
+  b.innerHTML = '<span class="ico">'+ico+'</span><span>'+label+'</span>';
+  b.addEventListener('click', ()=> addControl(kind));
+  toolbox.appendChild(b);
+});
+
+/* ---------- Kontrol oluşturma ---------- */
+function makeEl(kind){
+  let el;
+  switch(kind){
+    case 'label':    el = document.createElement('label'); el.textContent = 'Etiket'; break;
+    case 'button':   el = document.createElement('button'); el.className = 'ctl-btn'; el.textContent = 'Buton'; break;
+    case 'text':     el = document.createElement('input'); el.type = 'text'; el.placeholder = 'metin'; break;
+    case 'password': el = document.createElement('input'); el.type = 'password'; break;
+    case 'textarea': el = document.createElement('textarea'); el.rows = 4; el.cols = 24; break;
+    case 'select':   el = document.createElement('select'); ['Seçenek 1','Seçenek 2'].forEach(t=>{const o=document.createElement('option');o.textContent=t;el.appendChild(o);}); break;
+    case 'checkbox': el = document.createElement('input'); el.type = 'checkbox'; break;
+    case 'radio':    el = document.createElement('input'); el.type = 'radio'; break;
+    case 'link':     el = document.createElement('a'); el.href = '#'; el.textContent = 'Bağlantı'; break;
+    case 'image':    el = document.createElement('img'); el.src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80"><rect width="120" height="80" fill="#334155"/><text x="60" y="44" fill="#94a3b8" font-size="12" text-anchor="middle">görsel</text></svg>'); el.width = 120; el.height = 80; break;
+    case 'table':    el = document.createElement('table'); buildTable(el, 2, 2); break;
+  }
+  return el;
+}
+function buildTable(tbl, rows, cols){
+  tbl.innerHTML = '';
+  const thead = document.createElement('thead'); const htr = document.createElement('tr');
+  for(let c=0;c<cols;c++){ const th=document.createElement('th'); th.textContent='Başlık '+(c+1); htr.appendChild(th); }
+  thead.appendChild(htr); tbl.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  for(let r=0;r<rows;r++){ const tr=document.createElement('tr'); for(let c=0;c<cols;c++){ const td=document.createElement('td'); td.textContent='·'; tr.appendChild(td);} tbody.appendChild(tr); }
+  tbl.appendChild(tbody);
+}
+
+function addControl(kind){
+  const el = makeEl(kind);
+  el.id = kind + (counter++);
+  el.dataset.kind = kind;
+  el.classList.add('draggable');
+  el.style.left = '40px';
+  el.style.top  = '40px';
+  makeInteractive(el);
+  canvas.appendChild(el);
+  hideHint();
+  select(el);
+  autosave();
+}
+
+/* ---------- Etkileşim: sürükle + seç ---------- */
+function makeInteractive(el){
+  el.addEventListener('pointerdown', e=>{
+    e.preventDefault(); e.stopPropagation();
+    select(el);
+    const rect = canvas.getBoundingClientRect();
+    const offX = e.clientX - el.offsetLeft;
+    const offY = e.clientY - el.offsetTop;
+    el.setPointerCapture(e.pointerId);
+    const move = ev=>{
+      el.style.left = Math.max(0, Math.round(ev.clientX - offX + canvas.scrollLeft)) + 'px';
+      el.style.top  = Math.max(0, Math.round(ev.clientY - offY + canvas.scrollTop)) + 'px';
+      if(selected === el) loadProps();
+    };
+    const up = ev=>{
+      el.releasePointerCapture(e.pointerId);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      autosave();
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+  });
+  el.addEventListener('click', e=>{ e.preventDefault(); e.stopPropagation(); select(el); });
+}
+canvas.addEventListener('pointerdown', ()=> deselect());
+
+/* ---------- Seçim ---------- */
+function select(el){
+  if(selected) selected.classList.remove('selected');
+  selected = el;
+  el.classList.add('selected');
+  loadProps();
+  $('#evcode').value = el.dataset.vbs || '';
+  switchPane('props');
+}
+function deselect(){
+  if(selected) selected.classList.remove('selected');
+  selected = null;
+}
+
+/* ---------- Özellikler ---------- */
+const P = id => $('#'+id);
+function loadProps(){
+  if(!selected) return;
+  const el = selected, s = el.style;
+  P('pid').value   = el.id;
+  P('ptext').value = controlText(el);
+  P('px').value    = parseInt(s.left)||0;
+  P('py').value    = parseInt(s.top)||0;
+  P('pw').value    = s.width || '';
+  P('ph').value    = s.height || '';
+  P('pcolor').value= s.color || '';
+  P('pbg').value   = s.backgroundColor || '';
+  P('pfont').value = s.fontSize || '';
+  P('pclass').value= Array.from(el.classList).filter(c=>c!=='draggable'&&c!=='selected').join(' ');
+  const kind = el.dataset.kind;
+  $('#tableProps').style.display  = kind==='table'  ? 'block':'none';
+  $('#selectProps').style.display = kind==='select' ? 'block':'none';
+  $('#imgProps').style.display    = kind==='image'  ? 'block':'none';
+  if(kind==='table'){ P('prows').value = el.tBodies[0]?el.tBodies[0].rows.length:0; P('pcols').value = el.tHead&&el.tHead.rows[0]?el.tHead.rows[0].cells.length:0; }
+  if(kind==='image'){ P('pimg').value = el.getAttribute('src')||''; }
+}
+function controlText(el){
+  const k = el.dataset.kind;
+  if(k==='button'||k==='label'||k==='link') return el.textContent;
+  if(k==='text'||k==='password'||k==='textarea') return el.value;
+  return '';
+}
+function applyProps(){
+  if(!selected) return;
+  const el = selected, s = el.style;
+  const newId = P('pid').value.trim();
+  if(newId && newId !== el.id) el.id = newId;
+  setControlText(el, P('ptext').value);
+  if(P('px').value!=='') s.left = parseInt(P('px').value)+'px';
+  if(P('py').value!=='') s.top  = parseInt(P('py').value)+'px';
+  s.width  = P('pw').value;
+  s.height = P('ph').value;
+  s.color  = P('pcolor').value;
+  s.backgroundColor = P('pbg').value;
+  s.fontSize = P('pfont').value;
+  // CSS sınıfı (draggable korunur)
+  el.className = 'draggable selected ' + P('pclass').value.trim();
+  autosave();
+}
+function setControlText(el, val){
+  const k = el.dataset.kind;
+  if(k==='button'||k==='label'||k==='link') el.textContent = val;
+  else if(k==='text'||k==='password'||k==='textarea') el.value = val;
+}
+['pid','ptext','px','py','pw','ph','pcolor','pbg','pfont','pclass'].forEach(id=>{
+  P(id).addEventListener('input', applyProps);
+});
+
+/* tablo satır/sütun */
+['prows','pcols'].forEach(id=> P(id).addEventListener('input', ()=>{
+  if(!selected || selected.dataset.kind!=='table') return;
+  const r = Math.max(1, parseInt(P('prows').value)||1);
+  const c = Math.max(1, parseInt(P('pcols').value)||1);
+  buildTable(selected, r, c);
+  autosave();
+}));
+
+/* select option ekle/sil */
+P('optAdd').addEventListener('click', ()=>{
+  if(!selected || selected.dataset.kind!=='select') return toast('Açılır liste seçili değil', true);
+  const v = P('popt').value.trim(); if(!v) return;
+  const o = document.createElement('option'); o.textContent = v; selected.appendChild(o); autosave();
+});
+P('optDel').addEventListener('click', ()=>{
+  if(!selected || selected.dataset.kind!=='select') return;
+  const v = P('popt').value.trim();
+  Array.from(selected.options).forEach(o=>{ if(o.textContent===v) o.remove(); }); autosave();
+});
+
+/* görsel yükle */
+P('pimg').addEventListener('input', ()=>{ if(selected&&selected.dataset.kind==='image'){ selected.src = P('pimg').value; autosave(); } });
+P('imgLoad').addEventListener('click', ()=> $('#fileImage').click());
+$('#fileImage').addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f||!selected) return;
+  const r = new FileReader();
+  r.onload = ()=>{ selected.src = r.result; P('pimg').value = r.result; autosave(); };
+  r.readAsDataURL(f);
+});
+
+/* olay kodu */
+$('#evcode').addEventListener('input', ()=>{ if(selected){ selected.dataset.vbs = $('#evcode').value; autosave(); } });
+
+/* sil + klavye */
+P('btnDelete').addEventListener('click', deleteSelected);
+function deleteSelected(){
+  if(!selected) return;
+  if(!confirm('Bu kontrol silinsin mi?')) return;
+  selected.remove(); selected = null; autosave();
+}
+document.addEventListener('keydown', e=>{
+  if(e.target.matches('input,textarea,select')) return;
+  if(!selected) return;
+  if(e.key==='Delete'){ selected.remove(); selected=null; autosave(); }
+  else if(e.key.startsWith('Arrow')){
+    e.preventDefault();
+    const d = e.shiftKey?10:1, s=selected.style;
+    if(e.key==='ArrowLeft')  s.left=(parseInt(s.left||0)-d)+'px';
+    if(e.key==='ArrowRight') s.left=(parseInt(s.left||0)+d)+'px';
+    if(e.key==='ArrowUp')    s.top =(parseInt(s.top||0)-d)+'px';
+    if(e.key==='ArrowDown')  s.top =(parseInt(s.top||0)+d)+'px';
+    loadProps(); autosave();
+  }
+});
+
+/* ---------- Sekmeler ---------- */
+$$('.tab').forEach(t=> t.addEventListener('click', ()=> switchPane(t.dataset.pane)));
+function switchPane(name){
+  $$('.tab').forEach(t=> t.classList.toggle('active', t.dataset.pane===name));
+  $$('.pane').forEach(p=> p.classList.toggle('active', p.id==='pane-'+name));
+}
+
+/* ---------- Hint ---------- */
+function hideHint(){ const h=$('.canvas-hint'); if(h) h.style.display='none'; }
+
+/* ---------- Kaydet / Yükle (tasarım JSON) ---------- */
+function serialize(){
+  return JSON.stringify({
+    title: $('#pName').value,
+    globalCode: $('#globalCode').value,
+    html: canvas.innerHTML.replace(/ class="([^"]*)\bselected\b([^"]*)"/g,' class="$1$2"')
+  });
+}
+function restore(obj){
+  $('#pName').value = obj.title || 'uygulamam';
+  $('#globalCode').value = obj.globalCode || '';
+  canvas.innerHTML = obj.html || '';
+  $$('#canvas [data-kind]').forEach(el=>{ el.classList.remove('selected'); makeInteractive(el); });
+  // counter'ı en büyük id'ye göre ilerlet
+  let max = 1;
+  $$('#canvas [data-kind]').forEach(el=>{ const m = (el.id||'').match(/(\d+)$/); if(m) max = Math.max(max, parseInt(m[1])+1); });
+  counter = max;
+  if(!$('.canvas-hint') && canvas.children.length===0){} else hideHint();
+  selected = null;
+}
+function autosave(){ try{ localStorage.setItem('hta_design', serialize()); }catch(e){} }
+
+$('#btnSave').addEventListener('click', ()=>{
+  const blob = new Blob([serialize()], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = ($('#pName').value||'tasarim') + '.json'; a.click();
+  toast('Tasarım indirildi');
+});
+$('#btnLoad').addEventListener('click', ()=> $('#fileDesign').click());
+$('#fileDesign').addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{ try{ restore(JSON.parse(r.result)); autosave(); toast('Tasarım yüklendi'); }catch(err){ toast('Geçersiz dosya', true); } };
+  r.readAsText(f);
+});
+$('#btnNew').addEventListener('click', ()=>{
+  if(!confirm('Tüm tasarım silinsin mi?')) return;
+  canvas.innerHTML = '<div class="canvas-hint">Soldan bir araç ekleyerek başla</div>';
+  $('#globalCode').value=''; selected=null; counter=1; autosave();
+});
+
+/* ---------- Üretim: index.html + backend.vbs ---------- */
+function tpl(id){ return document.getElementById(id).textContent.replace(/^\n/,''); }
+
+function cleanFormHtml(){
+  const clone = canvas.cloneNode(true);
+  const hint = clone.querySelector('.canvas-hint'); if(hint) hint.remove();
+  clone.querySelectorAll('[data-kind]').forEach(el=>{
+    el.classList.remove('draggable','selected');
+    if(!el.getAttribute('class')) el.removeAttribute('class');
+    if(el.dataset.vbs && el.dataset.vbs.trim()) el.setAttribute('data-vbs-click', el.id + '_Click');
+    el.removeAttribute('data-vbs');
+    el.removeAttribute('data-kind');
+  });
+  return clone.innerHTML;
+}
+
+function buildIndexHtml(){
+  const title = ($('#pName').value || 'Uygulama');
+  const scriptTag = '<' + 'script src="app.js"><\/script>';
+  return [
+    '<!DOCTYPE html>',
+    '<html lang="tr"><head>',
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    '<title>'+escHtml(title)+'</title>',
+    '<link rel="stylesheet" href="style.css">',
+    '</head><body>',
+    '<div id="app">',
+    cleanFormHtml(),
+    '</div>',
+    scriptTag,
+    '</body></html>',
+    ''
+  ].join('\n');
+}
+function escHtml(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function indent(code, pad){ return code.replace(/\r?\n/g,'\n').split('\n').map(l=> pad + l).join('\n'); }
+
+function buildBackendVbs(){
+  let dispatch = '';
+  $$('#canvas [data-kind]').forEach(el=>{
+    const code = el.dataset.vbs;
+    if(code && code.trim()){
+      dispatch += '    Case "' + el.id + '_Click"\n' + indent(code, '        ') + '\n';
+    }
+  });
+  const global = $('#globalCode').value || "' (genel kod yok)";
+  return tpl('tpl-backend')
+    .replace('@@GLOBAL@@', ()=> global)
+    .replace('@@DISPATCH@@', ()=> (dispatch || '    ' + "' (olay kodu tanımlı kontrol yok)"));
+}
+
+/* ---------- ZIP (saklamalı / STORE, harici kütüphane yok) ---------- */
+const CRC = (()=>{ const t=new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; } return t; })();
+function crc32(u8){ let c=0xFFFFFFFF; for(let i=0;i<u8.length;i++) c=CRC[(c^u8[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+const enc = s => new TextEncoder().encode(s);
+const DT_TIME = 0, DT_DATE = ((2024-1980)<<9)|(1<<5)|1;  // geçerli DOS tarihi: 2024-01-01
+function zip(files){
+  const u16=n=>[n&255,(n>>8)&255];
+  const u32=n=>[n&255,(n>>8)&255,(n>>16)&255,(n>>24)&255];
+  const parts=[]; const central=[]; let offset=0;
+  for(const f of files){
+    const name = enc(f.name), data = f.data, crc = crc32(data);
+    const lh = new Uint8Array([].concat([0x50,0x4b,0x03,0x04],u16(20),u16(0x0800),u16(0),u16(DT_TIME),u16(DT_DATE),u32(crc),u32(data.length),u32(data.length),u16(name.length),u16(0)));
+    parts.push(lh,name,data);
+    const ch = new Uint8Array([].concat([0x50,0x4b,0x01,0x02],u16(20),u16(20),u16(0x0800),u16(0),u16(DT_TIME),u16(DT_DATE),u32(crc),u32(data.length),u32(data.length),u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset)));
+    central.push(ch,name);
+    offset += lh.length + name.length + data.length;
+  }
+  let cenSize=0; central.forEach(c=> cenSize+=c.length);
+  const end = new Uint8Array([].concat([0x50,0x4b,0x05,0x06],u16(0),u16(0),u16(files.length),u16(files.length),u32(cenSize),u32(offset),u16(0)));
+  const all=[...parts,...central,end];
+  let total=0; all.forEach(a=> total+=a.length);
+  const out=new Uint8Array(total); let pos=0; for(const a of all){ out.set(a,pos); pos+=a.length; }
+  return out;
+}
+const toCRLF = s => s.replace(/\r?\n/g,'\r\n');
+
+$('#btnExport').addEventListener('click', ()=>{
+  if(!$$('#canvas [data-kind]').length){ toast('Önce en az bir kontrol ekleyin', true); return; }
+  const name = ($('#pName').value || 'uygulama').replace(/[^\w.-]+/g,'_');
+  const readme = tpl('tpl-readme').replace(/@@TITLE@@/g, name);
+  const files = [
+    {name:'web/index.html', data: enc(toCRLF(buildIndexHtml()))},
+    {name:'web/style.css',  data: enc(toCRLF(tpl('tpl-style')))},
+    {name:'web/app.js',     data: enc(toCRLF(tpl('tpl-app')))},
+    {name:'backend.vbs',    data: enc(toCRLF(buildBackendVbs()))},
+    {name:'server.ps1',     data: enc(toCRLF(tpl('tpl-server')))},
+    {name:'baslat.vbs',     data: enc(toCRLF(tpl('tpl-baslat')))},
+    {name:'OKUBENI.md',     data: enc(toCRLF(readme))}
+  ];
+  const bytes = zip(files);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], {type:'application/zip'}));
+  a.download = name + '.zip';
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('Paket indirildi: ' + name + '.zip');
+});
+
+/* ---------- Önizleme ---------- */
+$('#btnPreview').addEventListener('click', ()=>{
+  const html = [
+    '<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8">',
+    '<title>Önizleme</title><style>', tpl('tpl-style'), '</style></head><body>',
+    '<div id="app">', cleanFormHtml(), '</div>',
+    '<' + 'script>', tpl('tpl-app'), '<\/' + 'script>',
+    '</body></html>'
+  ].join('\n');
+  const w = window.open('', '_blank');
+  if(w){ w.document.open(); w.document.write(html); w.document.close(); }
+  else toast('Açılır pencere engellendi', true);
+});
+
+/* ---------- Toast ---------- */
+let tT;
+function toast(msg, err){
+  const t = $('#toast'); t.textContent = msg; t.className = err?'err show':'show';
+  clearTimeout(tT); tT = setTimeout(()=> t.className='', 3200);
+}
+
+/* ---------- Başlangıç: localStorage'tan geri yükle ---------- */
+(function init(){
+  try{ const saved = localStorage.getItem('hta_design'); if(saved){ restore(JSON.parse(saved)); } }catch(e){}
+})();
+</script>
+</body>
+</html>
